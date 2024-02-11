@@ -1,0 +1,249 @@
+---
+title: "placeholder"
+always_allow_html: true
+output: 
+  officedown::rdocx_document:
+    reference_docx: tbl_shell.docx
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = FALSE, 
+                      message = FALSE,
+                      warning = FALSE,
+                      dpi = 600, 
+                      fig.width = 11, 
+                      fig.height = 6)
+
+library(table.glue)
+library(officer)
+library(flextable)
+library(janitor)
+
+conflicted::conflicts_prefer(flextable::as_flextable)
+
+table_polisher <- function(ft,
+                           font_size = 11,
+                           font_name = "Calibri"){
+
+  ft %>%
+    font(fontname = font_name, part = 'all') %>%
+    fontsize(size = font_size, part = 'all') %>%
+    height(height = 2, part = 'footer')
+
+}
+
+# specification for table tables
+rspec <- round_spec() |>
+  round_using_magnitude(digits = c(2, 1),
+                        breaks = c(2, Inf))
+
+# rspec <- round_spec() |>
+#   round_using_decimal(digits = 1)
+
+# save it to options:
+names(rspec) <- paste('table.glue', names(rspec), sep = '.')
+options(rspec)
+
+# default is double space 
+# single spacing for title page, abstract, captions
+single_par <- fp_par(line_spacing=1)
+
+fts <- c(
+    '\u2A',
+    '\u2020',
+    '\u2021',
+    '\uA7',
+    '\u2016',
+    '\uB6',
+    '#',
+    '\u2a\u2a',
+    '\u2020\u2020',
+    '\u2021\u2021'
+  )
+
+
+```
+
+Byron C. Jaeger, PhD,^1^ 
+
+^1^Department of Biostatistics and Data Science, Wake Forest School of Medicine, Winston-Salem, NC. `r single_par`
+
+```{r load-targets, include=FALSE}
+
+withr::with_dir(here::here(),code = {
+ targets::tar_load(names = c(tbl_characteristics,
+                             tbl_risk_means,
+                             tbl_risk_distr,
+                             tbl_risk_cross)) 
+})
+
+```
+
+\newpage
+
+Table 1. Characteristics of US adults by blood pressure levels and antihypertensive medication use based on the 2013-2020 National Health and Nutrition Examination Survey.  
+
+```{r}
+
+value_note <-  
+  "Population characteristics in the table are percentage or mean (95% confidence interval). US adults were grouped into the higher category of systolic and diastolic blood pressure. For example, if a person had systolic blood pressure of 146 mm Hg and diastolic blood pressure of 82 mm Hg, they were grouped into the ≥140/90 mm Hg category."
+
+abbrvs <- "SBP – systolic blood pressure; DBP – diastolic blood pressure; eGFR - estimated glomerular filtration rate."
+
+
+tbl_characteristics %>% 
+  as_grouped_data(groups = 'label') %>%
+  remove_empty('rows') %>%
+  as_flextable(hide_grouplabel = TRUE) %>%
+  add_header_row(
+    values = c("", 
+               "SBP/DBP categories in mm Hg among US adults not taking antihypertensive medication", 
+               names(tbl_characteristics)[7]), 
+                 colwidths = c(1, 4, 1)
+  ) %>%
+  theme_box() %>%
+  set_header_labels(
+    'level' = 'Characteristic'
+  ) %>%
+  padding(i = 4:9, j = 1, padding.left = 10, part = 'body') %>%
+  height(height = 1.5, part = 'header') %>%
+  width(width = 1.25) %>%
+  width(j = 2:5, width = 1.1) %>% 
+  align(align = 'center', part = 'all') %>%
+  align(j = 1, align = 'left', part = 'all') %>%
+  footnote(
+    i=2, j=1, part='header', 
+    value=as_paragraph(value_note), 
+    ref_symbols=fts[2]) %>%
+  add_footer_lines(
+    value = as_paragraph(abbrvs)
+  ) %>% 
+  merge_v(part = 'header') %>% 
+  table_polisher()
+
+```
+
+\newpage
+
+Table 2. Ten-year predicted cardiovascular disease risk by blood pressure levels and antihypertensive medication use based on the 2013-2020 National Health and Nutrition Examination Survey.  
+
+```{r}
+
+tbl_risk_means %>% 
+  as_grouped_data(groups = 'outcome') %>%
+  as_flextable(hide_grouplabel = TRUE) %>% 
+  add_header_row(
+    values = c("", 
+               "SBP/DBP categories in mm Hg among US adults not taking antihypertensive medication", 
+               names(tbl_risk_means)[7]), 
+                 colwidths = c(1, 4, 1)
+  ) %>% 
+  theme_box() %>% 
+  set_header_labels(
+    'label' = 'Mean (95% CI) 10-year predicted risk'
+  ) %>% 
+  padding(i = 2:4, j = 1, padding.left = 10, part = 'body') %>%
+  padding(i = 6:7, j = 1, padding.left = 10, part = 'body') %>%
+  height(height = 1.5, part = 'header') %>%
+  width(width = 1.25) %>%
+  width(j = 2:5, width = 1.1) %>% 
+  align(align = 'center', part = 'all') %>%
+  align(j = 1, align = 'left', part = 'all') %>%
+  # add_footer_lines(value = as_paragraph(abbrvs)) %>% 
+  merge_v(part = 'header') %>% 
+  table_polisher()
+
+```
+
+\newpage
+
+Table 3. Distribution of 10-year predicted risk by blood pressure levels and antihypertensive medication use based on the 2013-2020 National Health and Nutrition Examination Survey. 
+
+```{r}
+
+tbl_risk_distr %>% 
+  as_grouped_data(groups = 'label') %>%
+  as_flextable(hide_grouplabel = TRUE) %>% 
+  add_header_row(
+    values = c("", 
+               "SBP/DBP categories in mm Hg among US adults not taking antihypertensive medication", 
+               names(tbl_risk_distr)[7]), 
+                 colwidths = c(1, 4, 1)
+  ) %>% 
+  theme_box() %>% 
+  set_header_labels(
+    'risk_cat' = '10-year risk categories, %'
+  ) %>% 
+  padding(i = ~is.na(label), j = 1, padding.left = 10, part = 'body') %>% 
+  height(height = 1.5, part = 'header') %>%
+  width(width = 1.25) %>%
+  width(j = 2:5, width = 1.1) %>% 
+  align(align = 'center', part = 'all') %>%
+  align(j = 1, align = 'left', part = 'all') %>%
+  # add_footer_lines(value = as_paragraph(abbrvs)) %>% 
+  merge_v(part = 'header') %>% 
+  table_polisher()
+
+```
+
+<!-- new page not needed at the end of a block section -->
+```{r}
+
+margins_normal <- page_mar(bottom = 2.54 * 0.3937, 
+                           top    = 2.54 * 0.3937, 
+                           right  = 2.54 * 0.3937, 
+                           left   = 2.54 * 0.3937,
+                           gutter = 0)
+
+block_section(
+  prop_section(
+    page_size = page_size(orient = "portrait"),
+    type = "continuous",
+    page_margins = margins_normal
+  )
+)
+
+```
+
+Table 4. Cross-categorization of 10-year predicted risk by the PREVENT and pooled cohort equations based on the 2013-2020 National Health and Nutrition Examination Survey.
+
+```{r}
+
+tbl_risk_cross %>% 
+  as_grouped_data(groups = 'label') %>%
+  as_flextable(hide_grouplabel = TRUE) %>% 
+  add_header_row(
+    values = c("", 
+               "SBP/DBP categories in mm Hg among US adults not taking antihypertensive medication", 
+               names(tbl_risk_distr)[7]), 
+                 colwidths = c(2, 4, 1)
+  ) %>% 
+  theme_box() %>% 
+  set_header_labels(
+    'left_var' = 'PREVENT',
+    'right_var' = 'PCE'
+  ) %>% 
+  padding(i = ~is.na(label), j = 1, padding.left = 10, part = 'body') %>% 
+  height(height = 1.5, part = 'header') %>%
+  width(width = 1.25) %>%
+  width(j = 1:6, width = 1.1) %>% 
+  align(align = 'center', part = 'all') %>%
+  align(j = 1, align = 'left', part = 'all') %>%
+  # add_footer_lines(value = as_paragraph(abbrvs)) %>% 
+  merge_v(part = 'header') %>% 
+  table_polisher()
+
+```
+
+```{r}
+block_section(
+  prop_section(
+    page_size = page_size(orient = "landscape"),
+    page_margins = page_mar(bottom = 1/8, top = 1/8, 
+                            right = 1/4, left = 1/4),
+    type = "continuous"
+  )
+)
+```
