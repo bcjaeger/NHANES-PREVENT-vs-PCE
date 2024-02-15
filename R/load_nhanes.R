@@ -9,13 +9,22 @@ load_nhanes <- function(cycles) {
   nhanes_data <- cardioStatsUSA::nhanes_data %>%
     rename(cc_bmi_cat = cc_bmi)
 
+  nhanes_statin <- read_sas('data/statin9900.sas7bdat') %>%
+    rename(svy_id = SEQN)
+
   nhanes_pm <- read_sas("data/final9920_02202023.sas7bdat")
 
   merge_in <- nhanes_pm %>%
     select(svy_id = SEQN,
            cc_bmi = BMXBMI,
            chol_hdl = lbdhdd,
-           chol_total = LBXTC)
+           chol_total = LBXTC) %>%
+    left_join(nhanes_statin) %>%
+    mutate(statin = if_else(is.na(statin), 0, statin),
+           statin = factor(statin,
+                           levels = c(0, 1),
+                           labels = c("No", "Yes"))) %>%
+    rename(chol_med_statin = statin)
 
   nhanes_data %>%
     filter(svy_year %in% cycles) %>%
@@ -26,13 +35,13 @@ load_nhanes <- function(cycles) {
            bp_dia_mean,
            bp_cat_meds_included,
            bp_med_use,
-           chol_med_statin,
            cc_cvd_any,
            cc_bmi_cat,
            cc_diabetes,
            cc_smoke,
            cc_acr,
            cc_egfr,
+           cc_ckd,
            cc_hba1c,
            cc_egfr_lt60,
            cc_acr_gteq30) %>%

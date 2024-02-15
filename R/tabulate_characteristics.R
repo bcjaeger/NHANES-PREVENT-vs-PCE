@@ -50,14 +50,30 @@ tabulate_characteristics <- function(nhanes_design) {
     mutate(label = factor(label, levels = names(variables))) %>%
     arrange(label)
 
-  tb1_counts <- svytable(~bp_cat_meds_included, nhanes_design) %>%
+  tb1_bpcat_discrep <- variables %>%
+    map(tb1_fun,
+        by = c('bp_cat_meds_included', 'discrep_cvd_base_15'),
+        design = nhanes_design) %>%
+    bind_rows(.id = 'label') %>%
+    bind_rows() %>%
+    mutate(label = factor(label, levels = names(variables))) %>%
+    arrange(label)
+
+  tb1_counts_wtd <- svytable(~bp_cat_meds_included, nhanes_design) %>%
     enframe() %>%
+    transmute(
+      label = "Number of US Adults, millions",
+      value = table_value(value / 1e6),
+      bp_cat_meds_included = name,
+      level = 'counts',
+      ctns = TRUE
+    )
+
+  tb1_counts_raw <- nhanes_design %>%
+    getElement('variables') %>%
+    count(bp_cat_meds_included) %>%
     mutate(
-      value = as.numeric(value) %>%
-        divide_by(1e6) %>%
-        round(digits = 1) %>%
-        format(trim = TRUE) %>%
-        paste(name, "\n(n = ",. ,"M)", sep = "")
+      n = table_glue("{bp_cat_meds_included}\n(n = {n})")
     ) %>%
     deframe()
 
@@ -79,10 +95,44 @@ tabulate_characteristics <- function(nhanes_design) {
               value = table_glue("{x}\n({ci_lower}, {ci_upper})"),
               ctns = TRUE)
 
-  bind_rows(bp_props, tb1_bpcat) %>%
+  tb1_bpcat_out <- bind_rows(bp_props, tb1_counts_wtd, tb1_bpcat) %>%
     mutate(bp_cat_meds_included = recode(bp_cat_meds_included,
-                                         !!!tb1_counts)) %>%
+                                         !!!tb1_counts_raw)) %>%
     pivot_wider(names_from = bp_cat_meds_included,
+                values_from = value) %>%
+    add_count(label) %>%
+    split(.$label) %>%
+    map_dfr(~if(nrow(.x)==2){.x[-1, ]} else {.x}) %>%
+    mutate(label = factor(label,
+                          levels = c("Number of US Adults, millions",
+                                     "% (95% CI) of US population",
+                                     names(variables)))) %>%
+    arrange(label) %>%
+    mutate(
+      label = as.character(label),
+      level = if_else(ctns | n == 2, label, level),
+      label = if_else(n > 2, label, NA_character_)
+    ) %>%
+    select(-ctns, -n)
+
+  tb1_bpcat_discrep_out <- tb1_bpcat_discrep %>%
+    filter(discrep_cvd_base_15 %in% c("≥ 10%.< 15%", "≥ 10%.≥ 15%")) %>%
+    mutate(
+      bp_cat_meds_included = recode(
+        bp_cat_meds_included,
+        "<120/80" = 'lt_120',
+        "120-129/<80" = 'lt_130',
+        "130-139/80-89" = 'lt_140',
+        '≥140/90' = 'gteq_140',
+        "Taking antihypertensive medication" = 'meds'
+      ),
+      discrep_cvd_base_15 = recode(
+        discrep_cvd_base_15,
+        "≥ 10%.< 15%" = 'hi_lo',
+        "≥ 10%.≥ 15%" = 'hi_hi'
+      )
+    ) %>%
+    pivot_wider(names_from = c(discrep_cvd_base_15, bp_cat_meds_included),
                 values_from = value) %>%
     add_count(label) %>%
     split(.$label) %>%
@@ -96,7 +146,17 @@ tabulate_characteristics <- function(nhanes_design) {
       level = if_else(ctns | tolower(level) == 'yes', label, level),
       label = if_else(n > 2, label, NA_character_)
     ) %>%
-    select(-ctns, -n)
+    select(-ctns, -n) %>%
+    select(label, level,
+           ends_with("lt_120"),
+           ends_with("lt_130"),
+           ends_with("lt_140"),
+           ends_with("gteq_140"),
+           ends_with("meds"))
+
+  list(bpcat = tb1_bpcat_out,
+       bpcat_discrep = tb1_bpcat_discrep_out)
+
 
 }
 
@@ -114,8 +174,10 @@ tb1_fun <- function(.x, by = NULL, design){
 
   do_by <- !is.null(by)
 
+  by_collapse <- paste(by, collapse = ' + ')
+
   if(do_by){
-    by_formula <- as.formula(glue("~ {by}"))
+    by_formula <- as.formula(glue("~ {by_collapse}"))
   } else {
     by_formula <- NULL
   }
@@ -158,7 +220,7 @@ tb1_fun <- function(.x, by = NULL, design){
   } else {
 
     formula <- if(do_by){
-      as.formula(glue('~ {.x} + {by}'))
+      as.formula(glue('~ {.x} + {by_collapse}'))
     } else {
       as.formula(glue("~ {.x}"))
     }

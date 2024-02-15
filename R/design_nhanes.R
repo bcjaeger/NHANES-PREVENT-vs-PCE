@@ -4,12 +4,44 @@
 #'
 #' @title
 #' @param nhanes_derived
-design_nhanes <- function(nhanes_derived) {
+design_nhanes <- function(nhanes_derived, subgroup) {
 
-  svydesign(ids = ~ svy_psu,
-            strata = ~ svy_strata,
-            weights = ~ svy_weight_mec,
-            data = nhanes_derived,
-            nest = TRUE)
+  design_init <- svydesign(ids = ~ svy_psu,
+                           strata = ~ svy_strata,
+                           weights = ~ svy_weight_mec,
+                           data = nhanes_derived,
+                           nest = TRUE)
+
+  design_out <- switch(
+
+    subgroup,
+
+    "overall" = design_init,
+
+    "comorb" = design_init %>%
+      subset(cc_diabetes == "No" &
+               cc_ckd == "No" &
+               demo_age_years < 65),
+
+    "men" = design_init %>%
+      subset(demo_gender == "Men"),
+
+    "women" = design_init %>%
+      subset(demo_gender == "Women"),
+
+    "white" = design_init %>%
+      subset(demo_race == "White"),
+
+    "black" = design_init %>%
+      subset(demo_race == "Black")
+
+  )
+
+  attr(design_out, "subgroup") <- subgroup
+
+  design_out
 
 }
+
+get_design_subgroup <- function(x) attr(x, 'subgroup')
+

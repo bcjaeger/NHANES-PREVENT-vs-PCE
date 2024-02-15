@@ -11,6 +11,7 @@ derive_nhanes <- function(nhanes_excluded) {
   smoke_current_levels <- list(no = "No", yes = "Yes")
   diabetes_levels <- list(no = "No", yes = "Yes")
   bp_meds_levels <- list(no = "No", yes = "Yes")
+  statin_meds_levels <- list(no = "No", yes = "Yes")
 
   data %>%
     mutate(
@@ -51,7 +52,8 @@ derive_nhanes <- function(nhanes_excluded) {
         sex_levels = sex_levels,
         smoke_current_levels = smoke_current_levels,
         diabetes_levels = diabetes_levels,
-        bp_meds_levels = bp_meds_levels
+        bp_meds_levels = bp_meds_levels,
+        statin_meds_levels = statin_meds_levels
       ),
 
       ascvd_pce_cat = cut(
@@ -86,7 +88,8 @@ derive_nhanes <- function(nhanes_excluded) {
         sex_levels = sex_levels,
         smoke_current_levels = smoke_current_levels,
         diabetes_levels = diabetes_levels,
-        bp_meds_levels = bp_meds_levels
+        bp_meds_levels = bp_meds_levels,
+        statin_meds_levels = statin_meds_levels
       ),
 
       ascvd_prevent_base_cat = cut(
@@ -127,7 +130,8 @@ derive_nhanes <- function(nhanes_excluded) {
         sex_levels = sex_levels,
         smoke_current_levels = smoke_current_levels,
         diabetes_levels = diabetes_levels,
-        bp_meds_levels = bp_meds_levels
+        bp_meds_levels = bp_meds_levels,
+        statin_meds_levels = statin_meds_levels
       ),
 
       ascvd_prevent_full_cat = cut(
@@ -165,7 +169,8 @@ derive_nhanes <- function(nhanes_excluded) {
         sex_levels = sex_levels,
         smoke_current_levels = smoke_current_levels,
         diabetes_levels = diabetes_levels,
-        bp_meds_levels = bp_meds_levels
+        bp_meds_levels = bp_meds_levels,
+        statin_meds_levels = statin_meds_levels
       ),
 
       cvd_prevent_base_cat = cut(
@@ -207,7 +212,8 @@ derive_nhanes <- function(nhanes_excluded) {
         sex_levels = sex_levels,
         smoke_current_levels = smoke_current_levels,
         diabetes_levels = diabetes_levels,
-        bp_meds_levels = bp_meds_levels
+        bp_meds_levels = bp_meds_levels,
+        statin_meds_levels = statin_meds_levels
       ),
 
       cvd_prevent_full_cat = cut(
@@ -224,7 +230,158 @@ derive_nhanes <- function(nhanes_excluded) {
 
       cvd_prevent_full_bnry_15 = factor(cvd_prevent_full >= 0.15,
                                         levels = c(FALSE, TRUE),
-                                        labels = c("< 15%", "≥ 15%"))
+                                        labels = c("< 15%", "≥ 15%")),
+
+      ascvd_prevent_30_base = predict_30yr_ascvd_risk(
+        age_years = demo_age_years,
+        race = demo_race_black,
+        sex = demo_gender,
+        smoke_current = cc_smoke_current,
+        chol_total_mgdl = chol_total,
+        chol_hdl_mgdl = chol_hdl,
+        bp_sys_mmhg = bp_sys_mean,
+        bp_meds = bp_med_use,
+        diabetes = cc_diabetes,
+        acr = cc_acr,
+        hba1c = cc_hba1c,
+        sdi = cc_sdi,
+        statin_meds = chol_med_statin,
+        egfr_mlminm2 = cc_egfr,
+        bmi = cc_bmi,
+        equation_version = "Khan_2023",
+        prevent_type = 'base',
+        override_boundary_errors = TRUE,
+        race_levels = race_levels,
+        sex_levels = sex_levels,
+        smoke_current_levels = smoke_current_levels,
+        diabetes_levels = diabetes_levels,
+        bp_meds_levels = bp_meds_levels,
+        statin_meds_levels = statin_meds_levels
+      ),
+
+      ascvd_prevent_30_base_bnry_35 = factor(ascvd_prevent_30_base >= 0.35,
+                                             levels = c(FALSE, TRUE),
+                                             labels = c("< 35%", "≥ 35%")),
+
+      ascvd_prevent_30_base_bnry_50 = factor(ascvd_prevent_30_base >= 0.50,
+                                             levels = c(FALSE, TRUE),
+                                             labels = c("< 50%", "≥ 50%")),
+
+
+      cvd_prevent_30_base = predict_30yr_cvd_risk(
+        age_years = demo_age_years,
+        race = demo_race_black,
+        sex = demo_gender,
+        smoke_current = cc_smoke_current,
+        chol_total_mgdl = chol_total,
+        chol_hdl_mgdl = chol_hdl,
+        bp_sys_mmhg = bp_sys_mean,
+        bp_meds = bp_med_use,
+        diabetes = cc_diabetes,
+        acr = cc_acr,
+        hba1c = cc_hba1c,
+        sdi = cc_sdi,
+        statin_meds = chol_med_statin,
+        egfr_mlminm2 = cc_egfr,
+        bmi = cc_bmi,
+        equation_version = "Khan_2023",
+        prevent_type = 'base',
+        override_boundary_errors = TRUE,
+        race_levels = race_levels,
+        sex_levels = sex_levels,
+        smoke_current_levels = smoke_current_levels,
+        diabetes_levels = diabetes_levels,
+        bp_meds_levels = bp_meds_levels,
+        statin_meds_levels = statin_meds_levels
+      ),
+
+      cvd_prevent_30_base_bnry_35 = factor(cvd_prevent_30_base >= 0.35,
+                                           levels = c(FALSE, TRUE),
+                                           labels = c("< 35%", "≥ 35%")),
+
+      cvd_prevent_30_base_bnry_50 = factor(cvd_prevent_30_base >= 0.50,
+                                           levels = c(FALSE, TRUE),
+                                           labels = c("< 50%", "≥ 50%")),
+
+
+      ascvd_prevent_30_full = predict_30yr_ascvd_risk(
+        age_years = demo_age_years,
+        race = demo_race_black,
+        sex = demo_gender,
+        smoke_current = cc_smoke_current,
+        chol_total_mgdl = chol_total,
+        chol_hdl_mgdl = chol_hdl,
+        bp_sys_mmhg = bp_sys_mean,
+        bp_meds = bp_med_use,
+        diabetes = cc_diabetes,
+        acr = cc_acr,
+        hba1c = cc_hba1c,
+        sdi = cc_sdi,
+        statin_meds = chol_med_statin,
+        egfr_mlminm2 = cc_egfr,
+        bmi = cc_bmi,
+        equation_version = "Khan_2023",
+        prevent_type = 'full',
+        override_boundary_errors = TRUE,
+        race_levels = race_levels,
+        sex_levels = sex_levels,
+        smoke_current_levels = smoke_current_levels,
+        diabetes_levels = diabetes_levels,
+        bp_meds_levels = bp_meds_levels,
+        statin_meds_levels = statin_meds_levels
+      ),
+
+      ascvd_prevent_30_full_bnry_35 = factor(ascvd_prevent_30_full >= 0.35,
+                                             levels = c(FALSE, TRUE),
+                                             labels = c("< 35%", "≥ 35%")),
+
+      ascvd_prevent_30_full_bnry_50 = factor(ascvd_prevent_30_full >= 0.50,
+                                             levels = c(FALSE, TRUE),
+                                             labels = c("< 50%", "≥ 50%")),
+
+
+      cvd_prevent_30_full = predict_30yr_cvd_risk(
+        age_years = demo_age_years,
+        race = demo_race_black,
+        sex = demo_gender,
+        smoke_current = cc_smoke_current,
+        chol_total_mgdl = chol_total,
+        chol_hdl_mgdl = chol_hdl,
+        bp_sys_mmhg = bp_sys_mean,
+        bp_meds = bp_med_use,
+        diabetes = cc_diabetes,
+        acr = cc_acr,
+        hba1c = cc_hba1c,
+        sdi = cc_sdi,
+        statin_meds = chol_med_statin,
+        egfr_mlminm2 = cc_egfr,
+        bmi = cc_bmi,
+        equation_version = "Khan_2023",
+        prevent_type = 'full',
+        override_boundary_errors = TRUE,
+        race_levels = race_levels,
+        sex_levels = sex_levels,
+        smoke_current_levels = smoke_current_levels,
+        diabetes_levels = diabetes_levels,
+        bp_meds_levels = bp_meds_levels,
+        statin_meds_levels = statin_meds_levels
+      ),
+
+      cvd_prevent_30_full_bnry_35 = factor(cvd_prevent_30_full >= 0.35,
+                                           levels = c(FALSE, TRUE),
+                                           labels = c("< 35%", "≥ 35%")),
+
+      cvd_prevent_30_full_bnry_50 = factor(cvd_prevent_30_full >= 0.50,
+                                           levels = c(FALSE, TRUE),
+                                           labels = c("< 50%", "≥ 50%")),
+
+
+
+      # discrepancies:
+
+      discrep_cvd_base_15 = interaction(ascvd_pce_bnry_10,
+                                        cvd_prevent_base_bnry_15)
+
     )
 
 
