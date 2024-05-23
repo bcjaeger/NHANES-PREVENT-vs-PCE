@@ -1,13 +1,10 @@
-#' .. content for \description{} (no empty lines) ..
-#'
-#' .. content for \details{} ..
-#'
-#' @title
-#' @param nhanes_design
+
+# tar_load(nhanes_design_overall)
+# nhanes_design <- nhanes_design_overall
 
 tabulate_characteristics <- function(nhanes_design) {
 
-  variables = c(
+  variables <- c(
     "Age, years" = "demo_age_years",
     "Male gender, %" = "demo_gender",
     "Race/ethnicity, %" = "demo_race",
@@ -19,45 +16,37 @@ tabulate_characteristics <- function(nhanes_design) {
     "HbA1c, %" = "cc_hba1c",
     "Diabetes, %" = "cc_diabetes",
     "eGFR, ml/min/1.73 m2" = "cc_egfr",
-    "eGFR < 60 ml/min/1.73 m2, %" = "cc_egfr_lt60",
+    # "eGFR < 60 ml/min/1.73 m2, %" = "cc_egfr_lt60",
     "Albumin-to-creatinine ratio, mg/g" = "cc_acr",
-    "Albumin-to-creatinine ratio > 30 mg/g" = "cc_acr_gteq30",
+    # "Albumin-to-creatinine ratio > 30 mg/g" = "cc_acr_gteq30",
+    "Chronic kidney disease, %" = "cc_ckd",
     "Systolic blood pressure, mm Hg" = "bp_sys_mean",
     "Diastolic blood pressure, mm Hg" = "bp_dia_mean"
   )
 
-  # not used at the moment
-  # tb1_ovrl <- variables %>%
-  #   map(tb1_fun,  design = nhanes_design) %>%
-  #   bind_rows(.id = 'label') %>%
-  #   split(.$label) %>%
-  #   map(~ {
-  #     if(nrow(.x) == 2){
-  #       return(.x[2,])
-  #     } else {
-  #       return(.x)
-  #     }
-  #   }) %>%
-  #   .[names(variables)] %>%
-  #   bind_rows()
+  if(sum(nhanes_design$variables$cc_diabetes == "Yes", na.rm = T) == 0){
+    variables <- variables[-which(variables == 'cc_diabetes')]
+  }
+
+  if(sum(nhanes_design$variables$cc_ckd == "Yes", na.rm = T) == 0){
+    variables <- variables[-which(variables == 'cc_ckd')]
+  }
 
   tb1_bpcat <- variables %>%
     map(tb1_fun,
         by = 'bp_cat_meds_included',
         design = nhanes_design) %>%
     bind_rows(.id = 'label') %>%
-    bind_rows() %>%
     mutate(label = factor(label, levels = names(variables))) %>%
     arrange(label)
 
-  tb1_bpcat_discrep <- variables %>%
-    map(tb1_fun,
-        by = c('bp_cat_meds_included', 'discrep_cvd_base_15'),
-        design = nhanes_design) %>%
-    bind_rows(.id = 'label') %>%
-    bind_rows() %>%
-    mutate(label = factor(label, levels = names(variables))) %>%
-    arrange(label)
+  # tb1_bpcat_discrep <- variables %>%
+  #   map(tb1_fun,
+  #       by = c('bp_cat_meds_included', 'discrep_cvd_base_15'),
+  #       design = nhanes_design) %>%
+  #   bind_rows(.id = 'label') %>%
+  #   mutate(label = factor(label, levels = names(variables))) %>%
+  #   arrange(label)
 
   tb1_counts_wtd <- svytable(~bp_cat_meds_included, nhanes_design) %>%
     enframe() %>%
@@ -95,9 +84,13 @@ tabulate_characteristics <- function(nhanes_design) {
               value = table_glue("{x}\n({ci_lower}, {ci_upper})"),
               ctns = TRUE)
 
-  tb1_bpcat_out <- bind_rows(bp_props, tb1_counts_wtd, tb1_bpcat) %>%
+  tb1_bpcat_out <- tb1_bpcat %>%
     mutate(bp_cat_meds_included = recode(bp_cat_meds_included,
                                          !!!tb1_counts_raw)) %>%
+    mutate(value = if_else(is_suppressed(suppress_status),
+                           true = "--",
+                           false = value)) %>%
+    select(label, bp_cat_meds_included, ctns, level, value) %>%
     pivot_wider(names_from = bp_cat_meds_included,
                 values_from = value) %>%
     add_count(label) %>%
@@ -115,47 +108,51 @@ tabulate_characteristics <- function(nhanes_design) {
     ) %>%
     select(-ctns, -n)
 
-  tb1_bpcat_discrep_out <- tb1_bpcat_discrep %>%
-    filter(discrep_cvd_base_15 %in% c("≥ 10%.< 15%", "≥ 10%.≥ 15%")) %>%
-    mutate(
-      bp_cat_meds_included = recode(
-        bp_cat_meds_included,
-        "<120/80" = 'lt_120',
-        "120-129/<80" = 'lt_130',
-        "130-139/80-89" = 'lt_140',
-        '≥140/90' = 'gteq_140',
-        "Taking antihypertensive medication" = 'meds'
-      ),
-      discrep_cvd_base_15 = recode(
-        discrep_cvd_base_15,
-        "≥ 10%.< 15%" = 'hi_lo',
-        "≥ 10%.≥ 15%" = 'hi_hi'
-      )
-    ) %>%
-    pivot_wider(names_from = c(discrep_cvd_base_15, bp_cat_meds_included),
-                values_from = value) %>%
-    add_count(label) %>%
-    split(.$label) %>%
-    map_dfr(~if(nrow(.x)==2){.x[-1, ]} else {.x}) %>%
-    mutate(label = factor(label,
-                          levels = c("% (95% CI) of US population",
-                                     names(variables)))) %>%
-    arrange(label) %>%
-    mutate(
-      label = as.character(label),
-      level = if_else(ctns | tolower(level) == 'yes', label, level),
-      label = if_else(n > 2, label, NA_character_)
-    ) %>%
-    select(-ctns, -n) %>%
-    select(label, level,
-           ends_with("lt_120"),
-           ends_with("lt_130"),
-           ends_with("lt_140"),
-           ends_with("gteq_140"),
-           ends_with("meds"))
+  # tb1_bpcat_discrep_out <- tb1_bpcat_discrep %>%
+  #   filter(discrep_cvd_base_15 %in% c("≥ 10%.< 15%", "≥ 10%.≥ 15%")) %>%
+  #   mutate(
+  #     bp_cat_meds_included = recode(
+  #       bp_cat_meds_included,
+  #       "<120/80" = 'lt_120',
+  #       "120-129/<80" = 'lt_130',
+  #       "130-139/80-89" = 'lt_140',
+  #       '≥140/90' = 'gteq_140',
+  #       "Taking antihypertensive medication" = 'meds'
+  #     ),
+  #     discrep_cvd_base_15 = recode(
+  #       discrep_cvd_base_15,
+  #       "≥ 10%.< 15%" = 'hi_lo',
+  #       "≥ 10%.≥ 15%" = 'hi_hi'
+  #     )
+  #   ) %>%
+  #   mutate(value = if_else(str_detect(suppress_status, "suppress"),
+  #                          "--",
+  #                          value)) %>%
+  #   select(-mn, -se, -ci_lower, -ci_upper, -suppress_status) %>%
+  #   pivot_wider(names_from = c(discrep_cvd_base_15, bp_cat_meds_included),
+  #               values_from = value) %>%
+  #   add_count(label) %>%
+  #   split(.$label) %>%
+  #   map_dfr(~if(nrow(.x)==2){.x[-1, ]} else {.x}) %>%
+  #   mutate(label = factor(label,
+  #                         levels = c("% (95% CI) of US population",
+  #                                    names(variables)))) %>%
+  #   arrange(label) %>%
+  #   mutate(
+  #     label = as.character(label),
+  #     level = if_else(ctns | tolower(level) == 'yes', label, level),
+  #     label = if_else(n > 2, label, NA_character_)
+  #   ) %>%
+  #   select(-ctns, -n) %>%
+  #   select(label, level,
+  #          ends_with("lt_120"),
+  #          ends_with("lt_130"),
+  #          ends_with("lt_140"),
+  #          ends_with("gteq_140"),
+  #          ends_with("meds"))
 
-  list(bpcat = tb1_bpcat_out,
-       bpcat_discrep = tb1_bpcat_discrep_out)
+  list(bpcat = tb1_bpcat_out)
+  # bpcat_discrep = tb1_bpcat_discrep_out
 
 
 }
@@ -170,7 +167,7 @@ bind_confint <- function(x){
 
 }
 
-tb1_fun <- function(.x, by = NULL, design){
+tb1_fun <- function(.x, design, by = NULL, prop_confint = FALSE){
 
   do_by <- !is.null(by)
 
@@ -186,61 +183,110 @@ tb1_fun <- function(.x, by = NULL, design){
 
     formula <- as.formula(glue("~ {.x}"))
 
-    init <- if(do_by){
+    if(.x == 'cc_acr'){
 
-      svyby(formula, by = by_formula,
-            design = design,
-            FUN = svymean,
-            na.rm = TRUE) %>%
-        bind_confint() %>%
-        mutate(level = .x) %>%
-        rename_at(.vars = .x, .funs = ~ 'mn')
+      init <- if(do_by){
+
+        svyby(formula, by = by_formula,
+              design = design,
+              FUN = svyquantile,
+              quantiles = 1/2,
+              na.rm = TRUE) %>%
+          bind_confint() %>%
+          mutate(level = .x) %>%
+          rename_at(.vars = .x, .funs = ~ 'estimate') %>%
+          rename_at(.vars = paste("se", .x, sep = '.'), .funs = ~'std_error')
+
+      } else {
+
+        svyquantile(x = formula,
+                    design = design,
+                    quantiles = 1/2,
+                    na.rm = TRUE) %>%
+          getElement(.x) %>%
+          as_tibble() %>%
+          rename(estimate = quantile, ci_lower = ci.2.5, ci_upper = ci.97.5) %>%
+          mutate(level = .x)
+
+      }
 
     } else {
 
-      svymean(x = formula,
+      init <- if(do_by){
+
+        svyby(formula, by = by_formula,
               design = design,
+              FUN = svymean,
               na.rm = TRUE) %>%
-        bind_confint() %>%
-        rename_at(.vars = .x, .funs = ~ 'se') %>%
-        mutate(level = .x) %>%
-        rename(mn = mean)
+          bind_confint() %>%
+          mutate(level = .x) %>%
+          rename_at(.vars = .x, .funs = ~ 'estimate') %>%
+          rename(std_error = se)
+
+      } else {
+
+        svymean(x = formula,
+                design = design,
+                na.rm = TRUE) %>%
+          bind_confint() %>%
+          rename_at(.vars = .x, .funs = ~ 'std_error') %>%
+          mutate(level = .x) %>%
+          rename(estimate = mean)
+
+      }
 
     }
 
-    init %>%
-      mutate(
-        value = table_glue("{mn}\n({ci_lower}, {ci_upper})"),
-        ctns = TRUE
-      ) %>%
-      select(-mn, -se, -starts_with("ci")) %>%
-      ungroup() %>%
-      mutate_if(is.factor, as.character)
+
+    if(as.character(.x) == 'bp_dia_mean'){
+
+      init %>%
+        mutate(
+          value = table_glue("{estimate}\n({ci_lower}, {ci_upper})",
+                             rspec = round_spec() %>%
+                               round_using_decimal(digits = 0)),
+          suppress_status = suppress_ctns(estimate = estimate,
+                                          std_error = std_error,
+                                          design = design),
+          ctns = TRUE
+        ) %>%
+        ungroup() %>%
+        mutate_if(is.factor, as.character)
+
+    } else {
+
+      init %>%
+        mutate(
+          value = table_glue("{estimate}\n({ci_lower}, {ci_upper})"),
+          suppress_status = suppress_ctns(estimate = estimate,
+                                          std_error = std_error,
+                                          design = design),
+          ctns = TRUE
+        ) %>%
+        ungroup() %>%
+        mutate_if(is.factor, as.character)
+
+    }
+
+
 
   } else {
 
-    formula <- if(do_by){
-      as.formula(glue('~ {.x} + {by_collapse}'))
-    } else {
-      as.formula(glue("~ {.x}"))
+    out <- svy_ciprop(variable = .x, by = by, design = design) %>%
+      mutate(ctns = FALSE,
+             value = table_glue("{100 * estimate}")) %>%
+      rename(level = !!.x)
+
+    if(prop_confint){
+      out <- out %>%
+        mutate(
+          value = table_glue(
+            "{100 * estimate}\n({100 * ci_lower}, {100 * ci_upper})"
+          )
+        )
     }
 
-    init <- svytable(formula = formula, design = design) %>%
-      as_tibble()
-
-    if(do_by) init <- init %>%
-      group_by_at(.vars = by)
-
-    init %>%
-      mutate(
-        value = n / sum(n),
-        value = table_glue("{100 * value}"),
-        ctns = FALSE
-      ) %>%
-      rename_at(.vars = .x, .funs = ~ 'level') %>%
-      select(-n) %>%
-      ungroup() %>%
-      mutate_if(is.factor, as.character)
+    out
 
   }
 

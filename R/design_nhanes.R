@@ -20,7 +20,7 @@ design_nhanes <- function(nhanes_derived, subgroup) {
 
     "comorb" = design_init %>%
       subset(cc_diabetes == "No" &
-               cc_ckd == "No" &
+               (cc_ckd == "No" | is.na(cc_ckd)) &
                demo_age_years < 65),
 
     "men" = design_init %>%
@@ -28,6 +28,9 @@ design_nhanes <- function(nhanes_derived, subgroup) {
 
     "women" = design_init %>%
       subset(demo_gender == "Women"),
+
+    age_lt60 = design_init %>%
+      subset(demo_age_years < 60),
 
     "white" = design_init %>%
       subset(demo_race == "White"),

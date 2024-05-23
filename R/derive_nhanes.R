@@ -259,13 +259,13 @@ derive_nhanes <- function(nhanes_excluded) {
         statin_meds_levels = statin_meds_levels
       ),
 
-      ascvd_prevent_30_base_bnry_35 = factor(ascvd_prevent_30_base >= 0.35,
+      ascvd_prevent_30_base_bnry_30 = factor(ascvd_prevent_30_base >= 0.30,
                                              levels = c(FALSE, TRUE),
-                                             labels = c("< 35%", "≥ 35%")),
+                                             labels = c("< 30%", "≥ 30%")),
 
-      ascvd_prevent_30_base_bnry_50 = factor(ascvd_prevent_30_base >= 0.50,
+      ascvd_prevent_30_base_bnry_45 = factor(ascvd_prevent_30_base >= 0.45,
                                              levels = c(FALSE, TRUE),
-                                             labels = c("< 50%", "≥ 50%")),
+                                             labels = c("< 45%", "≥ 45%")),
 
 
       cvd_prevent_30_base = predict_30yr_cvd_risk(
@@ -295,13 +295,13 @@ derive_nhanes <- function(nhanes_excluded) {
         statin_meds_levels = statin_meds_levels
       ),
 
-      cvd_prevent_30_base_bnry_35 = factor(cvd_prevent_30_base >= 0.35,
+      cvd_prevent_30_base_bnry_30 = factor(cvd_prevent_30_base >= 0.30,
                                            levels = c(FALSE, TRUE),
-                                           labels = c("< 35%", "≥ 35%")),
+                                           labels = c("< 30%", "≥ 30%")),
 
-      cvd_prevent_30_base_bnry_50 = factor(cvd_prevent_30_base >= 0.50,
+      cvd_prevent_30_base_bnry_45 = factor(cvd_prevent_30_base >= 0.45,
                                            levels = c(FALSE, TRUE),
-                                           labels = c("< 50%", "≥ 50%")),
+                                           labels = c("< 45%", "≥ 45%")),
 
 
       ascvd_prevent_30_full = predict_30yr_ascvd_risk(
@@ -331,13 +331,13 @@ derive_nhanes <- function(nhanes_excluded) {
         statin_meds_levels = statin_meds_levels
       ),
 
-      ascvd_prevent_30_full_bnry_35 = factor(ascvd_prevent_30_full >= 0.35,
+      ascvd_prevent_30_full_bnry_30 = factor(ascvd_prevent_30_full >= 0.30,
                                              levels = c(FALSE, TRUE),
-                                             labels = c("< 35%", "≥ 35%")),
+                                             labels = c("< 30%", "≥ 30%")),
 
-      ascvd_prevent_30_full_bnry_50 = factor(ascvd_prevent_30_full >= 0.50,
+      ascvd_prevent_30_full_bnry_45 = factor(ascvd_prevent_30_full >= 0.45,
                                              levels = c(FALSE, TRUE),
-                                             labels = c("< 50%", "≥ 50%")),
+                                             labels = c("< 45%", "≥ 45%")),
 
 
       cvd_prevent_30_full = predict_30yr_cvd_risk(
@@ -367,20 +367,50 @@ derive_nhanes <- function(nhanes_excluded) {
         statin_meds_levels = statin_meds_levels
       ),
 
-      cvd_prevent_30_full_bnry_35 = factor(cvd_prevent_30_full >= 0.35,
+      cvd_prevent_30_full_bnry_30 = factor(cvd_prevent_30_full >= 0.30,
                                            levels = c(FALSE, TRUE),
-                                           labels = c("< 35%", "≥ 35%")),
+                                           labels = c("< 30%", "≥ 30%")),
 
-      cvd_prevent_30_full_bnry_50 = factor(cvd_prevent_30_full >= 0.50,
+      cvd_prevent_30_full_bnry_45 = factor(cvd_prevent_30_full >= 0.45,
                                            levels = c(FALSE, TRUE),
-                                           labels = c("< 50%", "≥ 50%")),
+                                           labels = c("< 45%", "≥ 45%")),
 
 
 
       # discrepancies:
 
       discrep_cvd_base_15 = interaction(ascvd_pce_bnry_10,
-                                        cvd_prevent_base_bnry_15)
+                                        cvd_prevent_base_bnry_15),
+
+      # combine ckd and diabetes
+
+      cc_ckd_or_diab = if_else(
+        cc_ckd == "Yes" | cc_diabetes == "Yes",
+        "Yes",
+        "No"
+      ),
+
+      cc_ckd_or_diab_or_age = if_else(
+        cc_ckd == "Yes" | cc_diabetes == "Yes" | demo_age_years >= 65,
+        "Yes",
+        "No"
+      ),
+
+      cc_ckd_or_diab = factor(cc_ckd_or_diab,
+                              levels = c("No", "Yes")),
+
+      cc_ckd_or_diab_or_age = factor(cc_ckd_or_diab_or_age,
+                                     levels = c("No", "Yes")),
+
+      demo_age_gteq_60 = factor(demo_age_years >= 60,
+                                levels = c(FALSE, TRUE),
+                                labels = c("No", "Yes")),
+
+      chol_non_hdl_gteq_130 = factor(chol_non_hdl >= 130,
+                                     levels = c(FALSE, TRUE),
+                                     labels = c("No", "Yes"))
+
+
 
     )
 

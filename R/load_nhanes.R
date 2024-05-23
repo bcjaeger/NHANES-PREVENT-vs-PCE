@@ -26,6 +26,7 @@ load_nhanes <- function(cycles) {
                            labels = c("No", "Yes"))) %>%
     rename(chol_med_statin = statin)
 
+
   nhanes_data %>%
     filter(svy_year %in% cycles) %>%
     select(starts_with("svy"),
@@ -41,11 +42,19 @@ load_nhanes <- function(cycles) {
            cc_smoke,
            cc_acr,
            cc_egfr,
-           cc_ckd,
            cc_hba1c,
            cc_egfr_lt60,
            cc_acr_gteq30) %>%
+    mutate(
+      # use this version as it allows missing
+      cc_ckd = if_else(
+        cc_acr > 30 | cc_egfr < 60,
+        "Yes",
+        "No"
+      )
+    ) %>%
     left_join(merge_in, by = 'svy_id') %>%
+    mutate(across(where(is.character), as.factor)) %>%
     relocate(cc_bmi, .before = cc_bmi_cat)
 
 }

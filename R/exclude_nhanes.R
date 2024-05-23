@@ -73,15 +73,18 @@ exclude_nhanes <- function(nhanes_init) {
     filter(cc_cvd_any == "No")
 
   # Have information on BP and self-reported antihypertensive medication use
-  nhanes_exclude_4 <- nhanes_exclude_3 %>%
-    drop_na(bp_sys_mean, bp_dia_mean, bp_med_use)
+  nhanes_exclude_4a <- nhanes_exclude_3 %>%
+    drop_na(bp_sys_mean, bp_dia_mean)
+
+  nhanes_exclude_4b <- nhanes_exclude_4a %>%
+    drop_na(bp_med_use)
 
   # Have data for the variables in the PCEs and PREVENT equations
   # - PREVENT variables (age, sex, total cholesterol, HDL-cholesterol,
   #   cigarette smoking, diabetes, estimated glomerular filtration rate,
   #   statin use)
   # - Pooled cohort risk equation variables (race/ethnicity)
-  nhanes_exclude_5 <- nhanes_exclude_4 %>%
+  nhanes_exclude_5 <- nhanes_exclude_4b %>%
     drop_na(demo_age_years,
             demo_gender,
             chol_total,
@@ -98,9 +101,9 @@ exclude_nhanes <- function(nhanes_init) {
     filter(chol_total %between% c(130, 320),
            chol_hdl %between% c(20, 100),
            bp_sys_mean %between% c(90, 200),
-           cc_bmi %between% c(18.5, 39.9),
+           # cc_bmi %between% c(18.5, 39.9),
            cc_egfr %between% c(15, 140),
-           cc_acr %between% c(0, 250000) | is.na(cc_acr),
+           cc_acr %between% c(0, 25000) | is.na(cc_acr),
            cc_hba1c %between% c(3, 15) | is.na(cc_hba1c))
 
   counts <- bind_rows(
@@ -108,9 +111,9 @@ exclude_nhanes <- function(nhanes_init) {
   tidy_counts(nhanes_exclude_1, "Completed the interview and examination"),
   tidy_counts(nhanes_exclude_2, "Age 30-79 years"),
   tidy_counts(nhanes_exclude_3, "No history of CVD"),
-  tidy_counts(nhanes_exclude_4, paste("Have information on SBP, DBP",
-                                      "and self-reported antihypertensive",
-                                      "medication use")),
+  tidy_counts(nhanes_exclude_4a, "Have information on SBP and DBP"),
+  tidy_counts(nhanes_exclude_4b, paste("Have information on self-reported",
+                                       "antihypertensive medication use")),
   tidy_counts(nhanes_exclude_5, paste("Have information on other variables",
                                       "in the PCEs and PREVENT equations")),
   tidy_counts(nhanes_exclude_6, paste("All variables in range for PREVENT",

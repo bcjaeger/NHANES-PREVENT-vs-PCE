@@ -16,6 +16,7 @@ library(glue)
 library(table.glue)
 library(data.table)
 library(magrittr)
+library(emmeans)
 library(broom)
 
 conflicts_prefer(dplyr::filter)

@@ -1,0 +1,770 @@
+---
+title: "placeholder"
+always_allow_html: true
+output: 
+  officedown::rdocx_document:
+    reference_docx: tbl_shell.docx
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = FALSE, 
+                      message = FALSE,
+                      warning = FALSE,
+                      dpi = 600, 
+                      fig.width = 11, 
+                      fig.height = 6)
+
+library(table.glue)
+library(officer)
+library(flextable)
+library(janitor)
+library(tidyverse)
+
+conflicted::conflicts_prefer(flextable::as_flextable)
+conflicted::conflicts_prefer(dplyr::filter)
+
+# specification for table tables
+rspec <- round_spec() |>
+  round_using_magnitude(digits = c(1, 0), breaks = c(100, Inf))
+
+# rspec <- round_spec() |>
+#   round_using_decimal(digits = 1)
+
+# save it to options:
+names(rspec) <- paste('table.glue', names(rspec), sep = '.')
+options(rspec)
+
+table_polisher <- function(ft,
+                           font_size = 11,
+                           font_name = "Arial"){
+
+  ft %>%
+    font(fontname = font_name, part = 'all') %>%
+    fontsize(size = font_size, part = 'all') %>%
+    height(height = 2, part = 'footer')
+
+}
+
+# default is double space 
+# single spacing for title page, abstract, captions
+single_par <- fp_par(line_spacing=1)
+
+fts <- c(
+    '\u2A',
+    '\u2020',
+    '\u2021',
+    '\uA7',
+    '\u2016',
+    '\uB6',
+    '#',
+    '\u2a\u2a',
+    '\u2020\u2020',
+    '\u2021\u2021'
+  )
+
+bp_cat_descr <- "SBP/DBP categories in mm Hg among US adults not taking antihypertensive medication"
+
+```
+
+Byron C. Jaeger, PhD,^1^ 
+
+^1^Department of Biostatistics and Data Science, Wake Forest School of Medicine, Winston-Salem, NC. `r single_par`
+
+```{r load-targets, include=FALSE}
+
+withr::with_dir(here::here(),code = {
+ targets::tar_load(names = c(nhanes_excluded,
+                             analysis_overall,
+                             analysis_comorb,
+                             analysis_lt60)) 
+})
+
+```
+
+\newpage
+
+Table 1. Characteristics of US adults by blood pressure levels and antihypertensive medication use based on the 2013-2020 National Health and Nutrition Examination Survey.  
+
+```{r}
+
+value_note <-  
+  "Population characteristics in the table are percentage or mean (95% confidence interval). For albumin-to-creatinine ratio, the table value is median (95% confidence interval)."
+
+bp_note <- 
+  "US adults were grouped into the higher category of systolic and diastolic blood pressure. For example, if a person had systolic blood pressure of 146 mm Hg and diastolic blood pressure of 82 mm Hg, they were grouped into the ≥140/90 mm Hg category."
+
+abbrvs <- "ACR – albumin to creatinine ratio; DBP – diastolic blood pressure; eGFR – estimated glomerular filtration rate. HDL – high density lipoprotein; SBP – systolic blood pressure"
+
+tbl <- analysis_overall %>% 
+  getElement("tbl_characteristics_overall") %>% 
+  getElement("bpcat")
+
+
+tbl %>% 
+  as_grouped_data(groups = 'label') %>%
+  remove_empty('rows') %>%
+  # add_row(label = "Characteristics", .after = 1) %>% 
+  as_flextable(hide_grouplabel = TRUE) %>%
+  add_header_row(
+    values = c("", bp_cat_descr, names(tbl)[7]), 
+    colwidths = c(1, 4, 1)
+  ) %>%
+  theme_box() %>%
+  set_header_labels(
+    'level' = 'Characteristic'
+  ) %>%
+  padding(i = 4:8, j = 1, padding.left = 10, part = 'body') %>%
+  height(height = 1.5, part = 'header') %>%
+  width(width = 1.25) %>%
+  width(j = 2:5, width = 1.1) %>% 
+  align(align = 'center', part = 'all') %>%
+  align(j = 1, align = 'left', part = 'all') %>%
+  footnote(
+    i = 2,
+    j = 1,
+    part = 'header',
+    value = as_paragraph(value_note),
+    ref_symbols = fts[2]
+  ) %>%
+  footnote(i = 1, 
+           j = 2, 
+           part = 'header',
+           value = as_paragraph(bp_note),
+           ref_symbols = fts[1]) %>% 
+  add_footer_lines(value = as_paragraph(abbrvs)) %>%
+  merge_v(part = 'header') %>%
+  table_polisher()
+
+```
+
+\newpage
+
+Table 2. Distribution of 10-year predicted risk by blood pressure levels and antihypertensive medication use based on the 2013-2020 National Health and Nutrition Examination Survey. 
+
+```{r}
+
+
+tbl_means <- analysis_overall %>% 
+  getElement("tbl_risk_means_overall") %>% 
+  mutate(risk_cat = "Mean\n(95% CI)",
+         label = paste(label, outcome, sep = ' - ')) %>% 
+  select(-outcome)
+
+tbl_distr <- analysis_overall %>% 
+  getElement("tbl_risk_dist_overall")
+
+tbl_dist_base <- 
+  bind_rows(tbl_means, tbl_distr) %>% 
+  filter(!str_detect(label, "full")) 
+
+tbl_dist_full <- 
+  bind_rows(tbl_means, tbl_distr) %>% 
+  filter(!str_detect(label, "base")) 
+
+
+tbls_dist <- list(main = tbl_dist_base,
+                  supp = tbl_dist_full) %>% 
+  map(
+    ~ .x %>% 
+      mutate(
+        label = factor(label),
+        label = relevel(label, ref = "Pooled cohort equations - ASCVD")
+      ) %>% 
+      arrange(label) %>% 
+      relocate(risk_cat, .before = 2) %>% 
+      as_grouped_data(groups = 'label') %>%
+      as_flextable(hide_grouplabel = TRUE) %>% 
+      add_header_row(
+        values = c("", bp_cat_descr, names(.x)[6]), 
+        colwidths = c(1, 4, 1)
+      ) %>% 
+      theme_box() %>% 
+      set_header_labels(
+        'risk_cat' = 'Distribution characteristic'
+      ) %>% 
+      padding(i = ~ is.na(label), j = 1, padding.left = 10, part = 'body') %>%
+      height(height = 1.5, part = 'header') %>%
+      width(width = 1.25) %>%
+      width(j = 2:5, width = 1.1) %>% 
+      align(align = 'center', part = 'all') %>%
+      align(j = 1, align = 'left', part = 'all') %>%
+      # add_footer_lines(value = as_paragraph(abbrvs)) %>% 
+      merge_v(part = 'header') %>% 
+      table_polisher()
+    
+  )
+
+tbls_dist$main
+
+```
+
+<!-- new page not needed at the end of a block section -->
+```{r}
+
+margins_normal <- page_mar(bottom = 2.54 * 0.3937, 
+                           top    = 2.54 * 0.3937, 
+                           right  = 2.54 * 0.3937, 
+                           left   = 2.54 * 0.3937,
+                           gutter = 0)
+
+block_section(
+  prop_section(
+    page_size = page_size(orient = "portrait"),
+    type = "continuous",
+    page_margins = margins_normal
+  )
+)
+
+```
+
+Table 3. Cross-categorization of 10-year predicted risk by the PREVENT and pooled cohort equations based on the 2013-2020 National Health and Nutrition Examination Survey.
+
+```{r}
+
+tbl_overall <- analysis_overall %>% 
+  getElement("tbl_risk_cross_overall") %>% 
+  getElement("overall")
+
+tbl_lt60_30 <- analysis_lt60 %>% 
+  getElement("tbl_risk_cross_age_lt60") %>% 
+  getElement("overall_30") %>% 
+  relocate(pce_var, .before = prevent_var)
+
+tbl_overall_by_age <- analysis_overall %>% 
+  getElement("tbl_risk_cross_overall") %>% 
+  getElement("by_age")
+
+tbl_comorb <- analysis_comorb %>% 
+  getElement("tbl_risk_cross_comorb") %>% 
+  getElement("overall")
+
+
+tbls_risk_cross <- list(
+  
+  overall_base = filter(tbl_overall, !str_detect(label, 'full')),
+  lt60_30_base = filter(tbl_lt60_30, !str_detect(label, 'full')),
+  overall_by_age_base = filter(tbl_overall_by_age, !str_detect(label, 'full')),
+  comorb_base = filter(tbl_comorb, !str_detect(label, 'full')),
+  
+  overall_full = filter(tbl_overall, !str_detect(label, 'base')),
+  lt60_30_full = filter(tbl_lt60_30, !str_detect(label, 'base')),
+  overall_by_age_full = filter(tbl_overall_by_age, !str_detect(label, 'base')),
+  comorb_full = filter(tbl_comorb, !str_detect(label, 'base'))
+  
+) %>% 
+  map(
+    .f = function(tbl){
+      tbl %>% 
+        as_grouped_data(groups = 'label') %>%
+        as_flextable(hide_grouplabel = TRUE) %>% 
+        add_header_row(
+          values = c("", bp_cat_descr, names(tbl)[8]), 
+          colwidths = c(2, 4, 1)
+        ) %>% 
+        theme_box() %>% 
+        set_header_labels(
+          'pce_var' = 'PCE',
+          'prevent_var' = 'PREVENT'
+        ) %>% 
+        padding(i = ~is.na(label), 
+                j = 1, 
+                padding.left = 10, 
+                part = 'body') %>% 
+        height(height = 1.5, part = 'header') %>%
+        width(width = 1.25) %>%
+        width(j = 1:6, width = 1.1) %>% 
+        align(align = 'center', part = 'all') %>%
+        align(j = 1, align = 'left', part = 'all') %>%
+        # add_footer_lines(value = as_paragraph(abbrvs)) %>% 
+        merge_v(part = 'header') %>% 
+        table_polisher()
+    })
+
+tbls_risk_cross$overall_base
+```
+
+
+```{r}
+block_section(
+  prop_section(
+    page_size = page_size(orient = "landscape"),
+    page_margins = page_mar(bottom = 1/8, top = 1/8,
+                            right = 1/4, left = 1/4),
+    type = "continuous"
+  )
+)
+```
+
+Table 4: Prevalence ratios for 10-year total cardiovascular disease risk ≥ 15% on the PREVENT base equation among US adults with 10-year atherosclerotic cardiovascular disease risk ≥ 10% by the Pooled Cohort equations and systolic blood pressure of 130-139 mm Hg or diastolic blood pressure of 80-89 mm Hg.
+
+```{r}
+
+tbls_discrepant <- analysis_overall %>% 
+  getElement("tbl_discrepant_overall") %>% 
+  split(.$bp_cat_meds_included) %>% 
+  map(
+    .f = ~ {
+      
+      .x %>% 
+        select(-bp_cat_meds_included) %>% 
+        as_grouped_data(groups = 'label') %>%
+        remove_empty('rows') %>% 
+        as_flextable(hide_grouplabel = TRUE) %>% 
+        add_header_row(
+          values = c(" ", "Prevalence ratio (95% CI)"),
+          colwidths = c(3, 2)
+        ) %>%
+        theme_box() %>% 
+        set_header_labels(
+          level = "Characteristic",
+          'pr_unadj' = 'Unadjusted',
+          'pr_adj' = 'Adjusted'
+        ) %>% 
+        padding(i = 4:7, j = 1, 
+                padding.left = 10, 
+                part = 'body') %>% 
+        height(height = 1.5, part = 'header') %>%
+        width(width = 1.1) %>%
+        width(j = 1, width = 2) %>% 
+        align(align = 'center', part = 'all') %>%
+        align(j = 1, align = 'left', part = 'all') %>%
+        # add_footer_lines(value = as_paragraph(abbrvs)) %>% 
+        merge_v(part = 'header') %>% 
+        footnote(
+          i = 1, 
+          j = 4,
+          part = 'header', 
+          value = as_paragraph("Prevalence ratios for continuous variables are per 5 years of age, per 40 mg/dL of total cholesterol, 20 mg/dL of HDL cholesterol, 20 mg/dL of non-HDL cholesterol, per 5 ml/min/1.73 m2 of estimated glomerular filtration rate, per 1 log mg/g of albumin-to-creatinine ratio, 10 mm Hg of systolic blood pressure, 5 mm Hg of diastolic blood pressure."),
+          ref_symbols = fts[2]
+        ) %>% 
+        footnote(
+          i = 2,
+          j = 1,
+          part = 'header',
+          value = as_paragraph(value_note),
+          ref_symbols = fts[3]
+        ) %>% 
+        footnote(
+          i = 2, 
+          j = 5, 
+          value = as_paragraph("Adjusted for age and sex."),
+          ref_symbols = fts[4],
+          part = 'header'
+        ) %>% 
+        add_footer_lines(value = as_paragraph(abbrvs)) %>%
+        table_polisher()
+      
+    }
+  )
+
+tbls_discrepant$`130-139/80-89`
+
+```
+
+
+```{r}
+
+block_section(
+  prop_section(
+    page_size = page_size(orient = "portrait"),
+    type = "continuous",
+    page_margins = margins_normal
+  )
+)
+
+```
+
+Table 5. Mean 30-year predicted total cardiovascular disease risk estimated by the PREVENT equations within level of predicted atherosclerotic and total cardiovascular disease 10-year risk categories by blood pressure category among adults 30 to <60 years of age.  
+
+```{r}
+
+tbls_risk_cross$lt60_30_base
+
+```
+
+\newpage
+
+Table 6. Mean 10-year and 30-year risk by characteristics of US adults with stage 1 hypertension. Mean 30-year risk is further restricted to US adults aged 30 to < 60 years.
+
+```{r}
+
+meandiffs_orig <- analysis_overall %>%
+  getElement("tbl_mean_diff_overall")
+
+meandiffs_age_lt60 <- analysis_lt60 %>% 
+  getElement("tbl_mean_diff_age_lt60")
+
+tbls_meandiffs <- map2(
+  .x = meandiffs_orig,
+  .y = meandiffs_age_lt60,
+  .f = ~ {
+    
+    overall <- .x %>% 
+      filter(outcome != "cvd_prevent_30_base")
+
+    age_lt60 <- .y %>% 
+      filter(outcome == "cvd_prevent_30_base")
+    
+    bind_rows(overall, age_lt60) %>% 
+      filter(level != "Other") %>% 
+      mutate(across(where(is.numeric), ~.x * 100)) %>% 
+      transmute(
+        outcome, label, level,
+        tbv_est = table_glue(
+          "{estimate}\n({ci_lower}, {ci_upper})"
+        ),
+        tbv_diff = if_else(
+          estimate_diff == 0,
+          "0 (ref)",
+          table_glue(
+            "{estimate_diff}\n({ci_lower_diff}, {ci_upper_diff})"
+          )
+        ) 
+      ) %>% 
+      pivot_wider(names_from = outcome, 
+                  values_from = c(tbv_est, tbv_diff)) %>% 
+      select(label, level, 
+             tbv_est_ascvd_pce, 
+             tbv_diff_ascvd_pce,
+             tbv_est_ascvd_prevent_base, 
+             tbv_diff_ascvd_prevent_base,
+             tbv_est_cvd_prevent_base, 
+             tbv_diff_cvd_prevent_base,
+             tbv_est_cvd_prevent_30_base, 
+             tbv_diff_cvd_prevent_30_base) %>% 
+      as_grouped_data(groups = "label") %>% 
+      as_flextable(hide_grouplabel = TRUE) %>% 
+      theme_box() %>%
+      add_header_row(
+        values = c("Characteristic",
+                   "Pooled cohort equations",
+                   "PREVENT equations"),
+        colwidths = c(1, 2, 6)
+      ) %>% 
+      width(width = 1.1) %>%
+      width(j = 1, width = 2) %>%
+      align(align = 'center', part = 'all') %>%
+      align(j = 1, align = 'left', part = 'all') %>%
+      padding(i = ~is.na(label),
+              j = 1,
+              padding.left = 15, 
+              part = 'body') %>% 
+      set_header_labels(
+        level = "Characteristic",
+        tbv_est_ascvd_pce = "10-year ASCVD risk",
+        tbv_diff_ascvd_pce = "Difference",
+        tbv_est_ascvd_prevent_base = "10-year ASCVD risk",
+        tbv_diff_ascvd_prevent_base = "Difference",
+        tbv_est_cvd_prevent_base = "10-year total CVD risk",
+        tbv_diff_cvd_prevent_base = "Difference",
+        tbv_est_cvd_prevent_30_base = "30-year total CVD risk",
+        tbv_diff_cvd_prevent_30_base = "Difference"
+      ) %>% 
+      footnote(
+        i = 2, 
+        j = c("tbv_diff_ascvd_pce",
+              "tbv_diff_ascvd_prevent_base",
+              "tbv_diff_cvd_prevent_base",
+              "tbv_diff_cvd_prevent_30_base"),
+        part = 'header', 
+        value = as_paragraph("Adjusted for age and sex"),
+        ref_symbols = fts[1]
+      ) %>% 
+      merge_v(part = 'header') %>% 
+      table_polisher()
+    
+    
+  }
+)
+
+
+tbls_meandiffs$`130-139/80-89`
+
+```
+
+
+
+```{r}
+block_section(
+  prop_section(
+    page_size = page_size(orient = "landscape"),
+    page_margins = page_mar(bottom = 1/8, top = 1/8,
+                            right = 1/4, left = 1/4),
+    type = "continuous"
+  )
+)
+```
+
+\newpage
+
+Figure 1: Cross-categorization of 10-year atherosclerotic cardiovascular disease risk, 10-year total cardiovascular disease risk, and 30-year total cardiovascular disease risk.
+
+```{r dpi=300, fig.width=11, fig.height=6}
+
+analysis_overall %>%
+  getElement("tbl_risk_flow_overall") %>%
+  relocate(p_1, .after = ascvd_pce_bnry_10) %>% 
+  relocate(p_2, .after = cvd_prevent_base_bnry_15) %>% 
+  # mutate(across(starts_with("p_"), ~table_value(.x * 100))) %>%
+  as_grouped_data("bp_cat_meds_included") %>%
+  as_flextable(hide_grouplabel = TRUE) %>%
+  merge_v(j = c(2:7), part = 'body') %>%
+  theme_box() %>%
+  width(width = 1.1) %>%
+  width(j = 1, width = 2) %>%
+  align(align = 'center', part = 'all') %>%
+  align(j = 1, align = 'left', part = 'all') %>%
+  set_header_labels(
+    ascvd_pce_bnry_10 = "PCEs",
+    cvd_prevent_base_bnry_15 = "PREVENT 10-year CVD",
+    cvd_prevent_30_base_bnry_30 = "PREVENT 30-year CVD",
+    p_1 = "%",
+    p_2 = "%",
+    p_3 = "%"
+  ) %>% 
+  table_polisher()
+
+  
+
+# tar_load(tbl_risk_flow_overall)
+
+# require(sankey)
+# require(magrittr)
+# 
+# tbl_risk_flow_overall <- analysis_overall %>%
+#   getElement("tbl_risk_flow_overall") %>% 
+#   filter(bp_cat_meds_included == '130-139/80-89') %>% 
+#   ungroup() %>% 
+#   select(-bp_cat_meds_included)
+# 
+# wts_1 <- tbl_risk_flow_overall %>%
+#   select(1:2) %>%
+#   distinct() %>%
+#   transmute(V1 = "US Adults\n30-79 years",
+#             V2 = paste("PCE 10-year\nASCVD risk", 
+#                        ascvd_pce_bnry_10),
+#             weight = p_1)
+# 
+# wts_2 <- tbl_risk_flow_overall %>%
+#   select(1, 3:4) %>%
+#   distinct() %>%
+#   transmute(V1 = paste("PCE 10-year\nASCVD risk", 
+#                        ascvd_pce_bnry_10),
+#             V2 = paste("PREVENT 10-year\nCVD risk", cvd_prevent_base_bnry_15),
+#             weight = p_2)
+# 
+# wts_3 <- tbl_risk_flow_overall %>%
+#   filter(ascvd_pce_bnry_10 == '≥ 10%') %>% 
+#   select(3, 5:6) %>%
+#   distinct() %>%
+#   transmute(V1 = paste("PREVENT 10-year\nCVD risk",
+#                        cvd_prevent_base_bnry_15),
+#             V2 = paste("PREVENT 30-year\nCVD risk",
+#                        cvd_prevent_30_base_bnry_30),
+#             weight = p_3) %>%
+#   group_by(V1, V2) %>%
+#   summarize(weight = sum(weight))
+# 
+# 
+# wts <- bind_rows(wts_3, wts_2, wts_1)
+# 
+# sankey_key <- tribble(
+#   ~ V1                 , ~V2,
+#   "US Adults\n30-79 years" , "PCE 10-year\nASCVD risk < 10%",
+#   "US Adults\n30-79 years" , "PCE 10-year\nASCVD risk ≥ 10%",
+#   # "PCE 10-year\nASCVD risk < 10%" , "PREVENT 10-year\nCVD risk < 15%",
+#   # "PCE 10-year\nASCVD risk < 10%" , "PREVENT 10-year\nCVD risk ≥ 15%",
+#   "PCE 10-year\nASCVD risk ≥ 10%" , "PREVENT 10-year\nCVD risk < 15%",
+#   "PCE 10-year\nASCVD risk ≥ 10%" , "PREVENT 10-year\nCVD risk ≥ 15%",
+#   "PREVENT 10-year\nCVD risk < 15%", "PREVENT 30-year\nCVD risk < 30%",
+#   "PREVENT 10-year\nCVD risk < 15%", "PREVENT 30-year\nCVD risk ≥ 30%",
+#   # "PREVENT 10-year\nCVD risk ≥ 15%", "PREVENT 30-year\nCVD risk < 30%",
+#   "PREVENT 10-year\nCVD risk ≥ 15%", "PREVENT 30-year\nCVD risk ≥ 30%"
+# ) %>%
+#   as.data.frame() %>%
+#   left_join(wts) %>%
+#   make_sankey(edges = .)
+# 
+# new_sizes <- sankey_key$edges %>%
+#   group_by(V2) %>%
+#   summarize(size = sum(weight)) %>%
+#   add_row(V2 = "US Adults\n30-79 years",
+#           size = 1) %>%
+#   rename(id = V2)
+# 
+# sankey_key$nodes$size <- NULL
+# 
+# sankey_key$nodes %<>% left_join(new_sizes)
+# 
+# sankey_key$nodes$texty[1] <- -.65
+# 
+# sankey_key$nodes$texty[2] <- -1.35
+# sankey_key$nodes$textx[2] <- 0.9
+# sankey_key$nodes$pos[2] <- 4
+# 
+# 
+# sankey_key$nodes$texty[3] <- -.4
+# sankey_key$nodes$textx[3] <- 1.1
+# sankey_key$nodes$pos[3] <- 4
+# 
+# sankey_key$nodes$texty[4] <- -.93
+# sankey_key$nodes$textx[4] <- 1.88
+# sankey_key$nodes$pos[4] <- 4
+# 
+# sankey_key$nodes$texty[5] <- -.37
+# sankey_key$nodes$textx[5] <- 1.88
+# sankey_key$nodes$pos[5] <- 4
+# 
+# sankey_key$nodes$texty[6] <- -.8
+# sankey_key$nodes$texty[7] <- -.45
+# 
+# sankey_key$nodes$col <- c("lightseagreen",
+#                           "orangered",
+#                           "lightseagreen",
+#                           "orangered",
+#                           "lightseagreen",
+#                           "orangered",
+#                           "lightseagreen")
+# 
+# 
+# make_sankey(nodes = sankey_key$nodes,
+#             edges = sankey_key$edges, 
+#             gravity = 'center') %>%
+#   sankey()
+
+```
+
+
+```{r}
+block_section(
+  prop_section(
+    page_size = page_size(orient = "landscape"),
+    page_margins = page_mar(bottom = 1/8, top = 1/8,
+                            right = 1/4, left = 1/4),
+    type = "continuous"
+  )
+)
+```
+
+**SUPPLEMENT**
+
+\newpage
+
+Supplemental Figure 1: Participant cascade
+
+```{r}
+
+nhanes_excluded$counts %>% 
+  flextable() %>% 
+  theme_box() %>% 
+  set_header_labels(
+    'label' = 'Inclusion criteria',
+    overall = "Total"
+  ) %>% 
+  width(width = 1.25) %>%
+  width(j = 2:5, width = 1.1) %>% 
+  align(align = 'center', part = 'all') %>%
+  align(j = 1, align = 'left', part = 'all') %>% 
+  table_polisher()
+
+```
+
+\newpage
+
+Supplemental Table 1: Distribution of 10-year predicted risk by blood pressure levels and antihypertensive medication use based on the 2013-2020 National Health and Nutrition Examination Survey.
+
+```{r}
+
+tbls_dist$supp %>% 
+  footnote(
+    i = c(7, 13), 
+    j = 1,
+    part = 'body', 
+    ref_symbols = fts[1],
+    value = as_paragraph(
+      'Incorporates information on glycated hemoglobin and albumin-to-creatinine ratio'
+    )
+  )
+
+```
+
+
+```{r}
+
+block_section(
+  prop_section(
+    page_size = page_size(orient = "portrait"),
+    type = "continuous",
+    page_margins = margins_normal
+  )
+)
+
+```
+
+Supplemental Table 2: Cross-categorization of 10-year predicted risk by the pooled cohort equations and PREVENT equations after excluding people age ≥65 years, with diabetes or chronic kidney disease (ACR > 30 mg/g or eGFR < 60 ml/min/1.73 m2).
+
+```{r}
+tbls_risk_cross$comorb_base
+```
+
+
+\newpage
+
+Supplemental Table 3: Cross-categorization of 10-year predicted risk by the pooled cohort equations and PREVENT equations among US adults < 60 years of age and ≥ 60 years of age.
+
+```{r}
+
+tbls_risk_cross$overall_by_age_base
+
+```
+
+\newpage
+
+Supplemental Table 4. Mean 10-year and 30-year risk by characteristics of US adults with systolic blood pressure of < 120 mm Hg and diastolic blood pressure < 80 mm Hg. Mean 30-year risk is further restricted to US adults aged 30 to < 60 years.
+
+```{r}
+
+tbls_meandiffs$`<120/80`
+
+```
+
+\newpage
+
+Supplemental Table 5. Mean 10-year and 30-year risk by characteristics of US adults with systolic blood pressure of 120 to 129 mm Hg and diastolic blood pressure < 80 mm Hg. Mean 30-year risk is further restricted to US adults aged 30 to < 60 years.
+
+```{r}
+
+tbls_meandiffs$`120-129/<80`
+
+```
+
+Supplemental Table 6. Mean 10-year and 30-year risk by characteristics of US adults with systolic blood pressure of ≥ 140 mm Hg or diastolic blood pressure ≥ 90 mm Hg. Mean 30-year risk is further restricted to US adults aged 30 to < 60 years.
+
+```{r}
+
+tbls_meandiffs$`≥140/90`
+
+```
+
+
+\newpage
+
+Supplemental Table 7. Mean 10-year and 30-year risk by characteristics of US adults taking antihypertensive medication. Mean 30-year risk is further restricted to US adults aged 30 to < 60 years.
+
+```{r}
+tbls_meandiffs$`Taking antihypertensive medication`
+```
+
+
+```{r}
+block_section(
+  prop_section(
+    page_size = page_size(orient = "landscape"),
+    page_margins = page_mar(bottom = 1/8, top = 1/8,
+                            right = 1/4, left = 1/4),
+    type = "continuous"
+  )
+)
+```
